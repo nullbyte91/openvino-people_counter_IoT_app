@@ -42,7 +42,8 @@ MQTT_PORT = 3001
 MQTT_KEEPALIVE_INTERVAL = 60
 
 # Browser and OpenCV Window toggle
-Browser_ON = True
+Browser_ON = False
+
 CPU_EXTENSION = "/opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so"
 
 fsm = Fysom({'initial': 'empty',
@@ -74,6 +75,9 @@ def build_argparser():
     parser.add_argument("-pt", "--prob_threshold", type=float, default=0.5,
                         help="Probability threshold for detections filtering"
                         "(0.5 by default)")
+    parser.add_argument("-o", "--output", type=str, default="LOCAL",
+                        help="Output window local or Web Server (use -o WEB)"
+                        "(LOCAL by default)")
     return parser
 
 
@@ -115,12 +119,16 @@ def infer_on_stream(args, client):
     _, frame = cap.read()
 
     people_total_count = 0
-    g_elapsed = 0
-    enter_xpix = 300
-    exit_xpix = 760
     people_in_a_frame = 0
 
+    g_elapsed = 0
+    entre_ROI_xmin = 400
+    entre_ROI_ymin = 450
+    exit_ROI_xmin = 550
+    exit_ROI_ymin = 410
+
     fps = FPS().start()
+
     # Process frames until the video ends, or process is exited
     while cap.isOpened():
         # Read the next frame
@@ -130,7 +138,7 @@ def infer_on_stream(args, client):
         
         fh = frame.shape[0]
         fw = frame.shape[1]
-        key_pressed = cv2.waitKey(60)
+        key_pressed = cv2.waitKey(50)
 
         # Pre-process the frame
         image_resize = cv2.resize(frame, (in_w, in_h))
@@ -150,22 +158,26 @@ def infer_on_stream(args, client):
                     ymin = int(box[4] * fh)
                     xmax = int(box[5] * fw)
                     ymax = int(box[6] * fh)
-                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 125, 255), 3)
-                    if xmin < enter_xpix:  
-                        if fsm.current == "empty":
-                            # Count a people
-                            people_total_count += 1
-                            people_in_a_frame += 1
-                            # Start the timer
-                            start_time = time.perf_counter()
-                            # Person entered a room - fsm state change
-                            fsm.enter()
-                            
-                            if Browser_ON == True:
-                                # Publish people_count messages to the MQTT server
-                                client.publish("person", json.dumps({"count": people_in_a_frame}))
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 3)
 
-                    if xmax > exit_xpix:
+                    if xmin < entre_ROI_xmin and ymax < entre_ROI_ymin:  
+                            if fsm.current == "empty":
+                                # Count a people
+                                people_in_a_frame += 1
+                                people_total_count += 1
+                                # Start the timer
+                                start_time = time.perf_counter()
+                                # Person entered a room - fsm state change
+                                fsm.enter()
+                                print(xmax, ymax)
+                                if args.output == "WEB":
+                                    # Publish people_count messages to the MQTT server
+                                    client.publish("person", json.dumps({"count": people_in_a_frame}))
+                                log.info("#########################")
+                                log.info("Person entered into frame")
+                                log.info("#########################")
+
+                    if xmin > exit_ROI_xmin and ymax < exit_ROI_ymin:
                         if fsm.current == "standing":
                             # Change the state to exit - fsm state change
                             fsm.exit()
@@ -176,23 +188,32 @@ def infer_on_stream(args, client):
                             log.info("elapsed time = {:.12f} seconds".format(elapsed))
                             g_elapsed = (g_elapsed + elapsed) / people_total_count
                             log.info("g_elapsed time = {:.12f} seconds".format(g_elapsed))
+                            
                             people_in_a_frame = 0
-                            if Browser_ON == True:
+
+                            if args.output == "WEB":
                                 # Publish duration messages to the MQTT server
                                 client.publish("person/duration", json.dumps({"duration": g_elapsed}))
-                                                        
-        # Update info on frame
-        info = [
-            ("people_ccount", people_total_count),
-        ]
+                                client.publish("person", json.dumps({"count": people_in_a_frame}))
+                            log.info("#########################")
+                            log.info("Person exited from frame")
+                            log.info("#########################")
+
+                    log.info("xmin:{} xmax:{} ymin:{} ymax:{}".format(xmin, xmax, ymin, ymax))
+                
+        if args.output != "WEB":                                                
+            # Update info on frame
+            info = [
+                ("people_ccount", people_total_count),
+            ]
+            
+            # loop over the info tuples and draw them on our frame
+            for (i, (k, v)) in enumerate(info):
+                text = "{}: {}".format(k, v)
+                cv2.putText(frame, text, (10, fh - ((i * 20) + 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
         
-        # loop over the info tuples and draw them on our frame
-        for (i, (k, v)) in enumerate(info):
-            text = "{}: {}".format(k, v)
-            cv2.putText(frame, text, (10, fh - ((i * 20) + 20)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-        
-        if Browser_ON == True:
+        if args.output == "WEB":
             # Push to FFmpeg server
             sys.stdout.buffer.write(frame)
 
@@ -210,11 +231,14 @@ def infer_on_stream(args, client):
     
     # Release the out writer, capture, and destroy any OpenCV windows
     cap.release()
-    if Browser_ON != True:
+
+    if args.output == "WEB":
+        client.disconnect()
+    else:
         cv2.destroyAllWindows()
     
     fps.stop()
-    client.disconnect()
+
     print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 def main():
@@ -223,10 +247,17 @@ def main():
 
     :return: None
     """
+    # Set log to INFO
+    log.basicConfig(level=log.INFO)
+
     # Grab command line args
     args = build_argparser().parse_args()
-    # Connect to the MQTT server
-    client = connect_mqtt()
+    if args.output == "WEB":
+        # Connect to the MQTT server
+        client = connect_mqtt()
+    else:
+        client = None 
+
     # Perform inference on the input stream
     infer_on_stream(args, client)
 
