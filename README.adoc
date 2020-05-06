@@ -161,7 +161,7 @@ python3 main.py -m ssd_mo_model/FP32/frozen_inference_graph.xml -i resources/Ped
 
 **2.** Output on Web Server:
 
-Terminal 1: Start the Mosca server
+Terminal 1: *Start the Mosca server*
 [source,bash]
 ----
 cd webservice/server/node-server
@@ -171,7 +171,7 @@ node ./server.js
 Mosca server started.
 ----
 
-Terminal 2: Start  GUI
+Terminal 2: *Start webserver GUI*
 [source,bash]
 ----
 cd webservice/ui
@@ -181,23 +181,40 @@ npm run dev
 webpack: Compiled successfully
 ----
 
-Terminal 3: FFmpeg Server
+Terminal 3: *FFmpeg Server*
 [source,bash]
 ----
 sudo ffserver -f ./ffmpeg/server.conf
 ----
 
-Terminal 4: Run a application
+Terminal 4: *Run a application*
 
 [source,bash]
 ----
-python3 main.py -m ../openvino-people_counter_IoT_app/ssdlite_mo_model/FP32/frozen_inference_graph.xml -i resources/Pedestrian_Detect_2_1_1.mp4 -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
-
+source /opt/intel/openvino/bin/setupvars.sh -pyver 3.5
+python3 main.py -m ../openvino-people_counter_IoT_app/ssdlite_mo_model/FP16/frozen_inference_graph.xml -i resources/Pedestrian_Detect_2_1_1.mp4 -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 -o WEB | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
 ----
 
-=== Performance analysis
+image::resources/output_udacity.gif[]
 
-To do
+=== Performance analysis
+*Detection, Count and duration*
+
+Hardware configuration: i7-6820HQ CPU
+|===
+|Model |FP32 - Size |FP32 - FPS | FP16 - Size | FP16 - FPS 
+
+|ssd_mobilenet_v2_coco_2018_03_29
+|65M
+|7.61 
+|33M
+|8.01
+|ssdlite_mobilenet_v2
+|18M
+|11.02
+|8.6M
+|13.06
+|===
 
 == To Do
 
