@@ -216,6 +216,17 @@ Hardware configuration: i7-6820HQ CPU
 |13.06
 |===
 
+=== Bonus
+*Detection with high FPS using async with multithreading*
+[source,bash]
+----
+cd detection
+
+python3 main.py -i ../resources/Pedestrian_Detect_2_1_1.mp4 -m ../openvino-people_counter_IoT_app/ssdlite_mo_model/FP16/frozen_inference_graph.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -pt 0.5
+----
+
+This implementation gives *90 FPS* on the same hardware.
+
 == To Do
 
 === README
