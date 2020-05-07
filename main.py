@@ -105,7 +105,7 @@ def infer_on_stream(args, client):
     prob_threshold = args.prob_threshold
 
     # Load the model through `infer_network`
-    infer_network.load_model(args.model, args.device, CPU_EXTENSION)
+    infer_network.load_model(args.model, args.device, CPU_EXTENSION, num_requests=0)
 
     # Get a Input blob shape
     in_n, in_c, in_h, in_w = infer_network.get_input_shape()
@@ -146,11 +146,11 @@ def infer_on_stream(args, client):
         image = image.reshape(in_n, in_c, in_h, in_w)
         
         # Perform inference on the frame
-        infer_network.exec_net(image)
+        infer_network.exec_net(image, request_id=0)
         
         # Get the output of inference
-        if infer_network.wait() == 0:
-            result = infer_network.get_output()
+        if infer_network.wait(request_id=0) == 0:
+            result = infer_network.get_output(request_id=0)
             for box in result[0][0]: # Output shape is 1x1x100x7
                 conf = box[2]
                 if conf >= prob_threshold:
