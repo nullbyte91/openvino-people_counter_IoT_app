@@ -24,6 +24,7 @@ import time
 import socket
 import json
 import cv2
+import numpy as np
 
 import logging as log
 import paho.mqtt.client as mqtt
@@ -108,13 +109,19 @@ def infer_on_stream(args, client):
     infer_network.load_model(args.model, args.device, CPU_EXTENSION, num_requests=0)
 
     # Get a Input blob shape
-    in_n, in_c, in_h, in_w = infer_network.get_input_shape()
+    _, _, in_h, in_w = infer_network.get_input_shape()
 
     # Get a output blob name
     _ = infer_network.get_output_name()
     
     # Handle the input stream
-    cap = cv2.VideoCapture(args.input)
+    try:
+        cap = cv2.VideoCapture(args.input)
+    except FileNotFoundError:
+        print("Cannot locate video file: "+ args.input)
+    except Exception as e:
+        print("Something else went wrong with the video file: ", e)
+    
     cap.open(args.input)
     _, frame = cap.read()
 
@@ -139,12 +146,10 @@ def infer_on_stream(args, client):
         fh = frame.shape[0]
         fw = frame.shape[1]
         key_pressed = cv2.waitKey(50)
+    
+        image_resize = cv2.resize(frame, (in_w, in_h), interpolation = cv2.INTER_AREA)
+        image = np.moveaxis(image_resize, -1, 0)
 
-        # Pre-process the frame
-        image_resize = cv2.resize(frame, (in_w, in_h))
-        image = image_resize.transpose((2,0,1))
-        image = image.reshape(in_n, in_c, in_h, in_w)
-        
         # Perform inference on the frame
         infer_network.exec_net(image, request_id=0)
         
@@ -248,7 +253,7 @@ def main():
     :return: None
     """
     # Set log to INFO
-    log.basicConfig(level=log.INFO)
+    log.basicConfig(level=log.CRITICAL)
 
     # Grab command line args
     args = build_argparser().parse_args()

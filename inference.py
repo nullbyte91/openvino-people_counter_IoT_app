@@ -63,7 +63,10 @@ class Network:
             log.info("CPU extension loaded: {}".format(cpu_extension))
         
         # Read the IR as a IENetwork
-        self.network = IENetwork(model=model_xml, weights=model_bin)
+        try:
+            self.network = IENetwork(model=model_xml, weights=model_bin)
+        except Exception as e:
+            raise ValueError("Could not Initialise the network. Have you enterred the correct model path?")
         
         # Check Network layer support 
         if "CPU" in device:
