@@ -126,6 +126,12 @@ python3 /opt/intel/openvino/deployment_tools/model_optimizer/mo_tf.py --input_mo
 [quote] 
 We can use --data_type to get quantized weights {'FP16', 'FP32', 'half', 'float'}
 
+[source, bash]
+The IOU is better with Intel pre-trained model person-detection-retail-0013
+
+```bash
+python3  /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/downloader.py --name person-detection-retail-0013 -o .
+```
 [source,bash]
 ----
 # ssdlite_mobilenet_v2_coco
@@ -151,6 +157,11 @@ Precision benchmark:
 |ssdlite_mobilenet_v2
 |18M
 |8.6M
+
+|person-detection-retail-0013
+|2.8M
+|1.4M
+
 |===
 
 == Usage
